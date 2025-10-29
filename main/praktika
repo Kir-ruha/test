@@ -1,0 +1,85 @@
+Так как, indexer отвечает за хранение событий, для него критично дисковое пространство. Wazuh при расчете потока событий предлагает считать, что один сервер в среднем отправляет 0,25 событий, рабочая станция 0,1, а сетевое устройство 0,5. Так, например, для среды с 80 рабочими станциями, 10 серверами и 10 сетевыми устройствами объем хранилища, необходимый на сервере Wazuh indexer для 90 дней, составляет 230 ГБ. Но в реальности количество событий может существенно отличаться.
+
+Сначала загрузим необходимые файлы:
+
+curl -sO https://packages.wazuh.com/4.7/wazuh-install.sh
+
+curl -sO https://packages.wazuh.com/4.7/config.yml
+
+Далее отредактируйте ./config.yml и замените имена узлов и значения IP соответствующими именами и IP-адресами. Вам нужно сделать это для всех узлов Wazuh server, Wazuh indexer и Wazuh dashboard. Добавьте столько полей узла, сколько необходимо. Например:
+nodes:
+  # Wazuh indexer nodes
+  indexer:
+    - name: node-1
+      ip: "<indexer-node-ip>"
+    #- name: node-2
+    #  ip: "<indexer-node-ip>"
+    #- name: node-3
+    #  ip: "<indexer-node-ip>"
+
+  # Wazuh server nodes
+  # If there is more than one Wazuh server
+  # node, each one must have a node_type
+  server:
+    - name: wazuh-1
+      ip: "<wazuh-manager-ip>"
+    #  node_type: master
+    #- name: wazuh-2
+    #  ip: "<wazuh-manager-ip>"
+    #  node_type: worker
+    #- name: wazuh-3
+    #  ip: "<wazuh-manager-ip>"
+    #  node_type: worker
+
+  # Wazuh dashboard nodes
+  dashboard:
+    - name: dashboard
+      ip: "<dashboard-node-ip>"
+
+Шаг 4. Запустите помощник по установке Wazuh
+Запустите помощник по установке Wazuh с параметром --generate-config-files, чтобы сгенерировать ключ кластера Wazuh, сертификаты и пароли, необходимые для установки. Вы можете найти эти файлы в ./wazuh-install-files.tar.
+
+bash wazuh-install.sh --generate-config-files
+
+Скопируйте файл wazuh-install-files.tar на все серверы распределенного развертывания, включая сервер Wazuh, Wazuh indexer и узлы панели мониторинга Wazuh.
+
+Далее запустите помощник по установке Wazuh с параметром --wazuh-indexer и именем узла, чтобы установить и настроить Wazuh indexer. Имя узла обязательно должно совпадать с именем, используемым в config.yml для начальной конфигурации, например, node-1. Также, убедитесь, что копия wazuh-install-files.tar, созданная на начальном этапе настройки, помещена в ваш рабочий каталог.
+
+bash wazuh-install.sh --wazuh-indexer node-1
+Шаг 5: Далее запускаем кластер.
+
+bash wazuh-install.sh --start-cluster
+
+Запустите следующую команду, чтобы проверить успешность установки. Замените <ADMIN_PASSWORD> паролем, полученным в результате выполнения предыдущей команды. Замените <WAZUH_INDEXER_IP> на настроенный IP-адрес Wazuh Indexer:
+
+curl -k -u admin:<ADMIN_PASSWORD> https://<WAZUH_INDEXER_IP>:9200
+
+На выходе мы должны получить что-то похожее:
+{
+  "name" : "node-1",
+  "cluster_name" : "wazuh-cluster",
+  "cluster_uuid" : "095jEW-oRJSFKLz5wmo5PA",
+  "version" : {
+    "number" : "7.10.2",
+    "build_type" : "rpm",
+    "build_hash" : "db90a415ff2fd428b4f7b3f800a51dc229287cb4",
+    "build_date" : "2023-06-03T06:24:25.112415503Z",
+    "build_snapshot" : false,
+    "lucene_version" : "9.6.0",
+    "minimum_wire_compatibility_version" : "7.10.0",
+    "minimum_index_compatibility_version" : "7.0.0"
+  },
+  "tagline" : "The OpenSearch Project: https://opensearch.org/"
+}
+Шаг 6. Для установки сервера сначала как обычно загрузим установочный файл и затем запустим его, указав правильное имя из config.yml, который мы заполнили ранее.
+curl -sO https://packages.wazuh.com/4.7/wazuh-install.sh
+
+bash wazuh-install.sh --wazuh-server wazuh-1
+
+Установка компонента Dashboard также достаточно проста. Запускаем установку с правильным именем Dashboard.
+
+bash wazuh-install.sh --wazuh-dashboard dashboard
+
+В результате успешной установки получим сообщение, содержащее сгенерированный пароль для учетки admin.
+
+Для проверки работы зайдем в консоль Wazuh под этой учеткой.
